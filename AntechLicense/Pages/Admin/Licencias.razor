@@ -1,0 +1,69 @@
+﻿@page "/admin/licencias"
+@page "/admin"
+@inherits OwningComponentBase<IStoreRepository>
+<table class="table table-sm table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Tipo de Licencia</th>
+            <th>Price</th>
+            <td />
+        </tr>
+    </thead>
+    <tbody>
+        @if (LicenciaData?.Count() > 0)
+        {
+            @foreach (Licencia l in LicenciaData)
+            {
+                <tr>
+                    <td>@l.LicenciaID</td>
+                    <td>@l.NumeroLicencia</td>
+                    <td>@l.TipoLicencia</td>
+                    <td>@l.Precio.ToString("c")</td>
+                    <td>
+                        <NavLink class="btn btn-info btn-sm"
+                                 href="@GetDetailsUrl(Convert.ToInt32(l.LicenciaID))">
+                            Details
+                        </NavLink>
+                        <NavLink class="btn btn-warning btn-sm"
+                                 href="@GetEditUrl(Convert.ToInt32(l.LicenciaID))">
+                            Edit
+                        </NavLink>
+                        <button class="btn btn-danger btn-sm"
+                                @onclick="@(e => DeleteLicencia(l))">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="5" class="text-center">No Licencias</td>
+            </tr>
+        }
+    </tbody>
+</table>
+<NavLink class="btn btn-primary" href="/admin/licencias/create">Create</NavLink>
+@code {
+    public IStoreRepository Repository => Service;
+    public IEnumerable<Licencia> LicenciaData { get; set; }
+    protected async override Task OnInitializedAsync()
+    {
+        await UpdateData();
+    }
+    public async Task UpdateData()
+    {
+        LicenciaData = await Repository.Licencias.ToListAsync();
+    }
+    public async Task DeleteLicencia(Licencia l)
+    {
+        Repository.DeleteLicencia(l);
+        await UpdateData();
+    }
+
+    public string GetDetailsUrl(int id) => $"/admin/licencias/details/{id}";
+    public string GetEditUrl(int id) => $"/admin/licencias/edit/{id}";
+}
