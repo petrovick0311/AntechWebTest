@@ -1,0 +1,76 @@
+﻿@model CocktailDB
+@{
+
+
+}
+
+<nav class="navbar navbar-expand-lg" style="background-color:aliceblue;">
+    <div class="container-fluid">
+        <a class="navbar-brand">Buscar por&nbsp;:</a>
+
+        <div class="collapse navbar-collapse d-flex" id="navbarSupportedContent">
+            <form asp-controller="Home" asp-action="Search" method="post" class="d-flex">
+                <div class="form-check form-check-inline">
+                    @Html.RadioButton("TipoBusqueda", "Ingrediente")&nbsp;Ingredientes
+                </div>
+                &nbsp;
+                <div class="form-check form-check-inline">
+                    @Html.RadioButton("TipoBusqueda", "NombreCocktail", true)&nbsp;Nombre del Cocktail
+                </div>
+                <div class="d-flex justify-content-end align-items-end">
+                    <input id="Buscar" name="Buscar" class="form-control me-2 justify-content-end align-items-end " type="search" placeholder="" aria-label="Search">
+                    <button class="btn btn-outline-info justify-content-end align-items-end" id="search-button" type="submit"><i class="fas fa-search"></i></button>
+
+                </div>
+            </form>
+        </div>
+    </div>
+</nav>
+@if (Convert.ToString(ViewBag.ShowAlert) != "")
+{
+    string[] OpcionesBusqueda = Convert.ToString(ViewBag.ShowAlert).Split('-');
+
+    @if (Model.ldrinks.Count > 0)
+    {
+        <div class="alert alert-success" role="alert">
+            <button type="button" class="close" data-dismiss="alert">
+                x
+            </button>
+            <a>Busqueda por **@OpcionesBusqueda[1]** con el valor: **@OpcionesBusqueda[0]**. Realizada con éxito</a>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-danger" role="alert">
+            <button type="button" class="close" data-dismiss="alert">
+                x
+            </button>
+            <a>Busqueda por **@OpcionesBusqueda[1]** con el valor: **@OpcionesBusqueda[0]**. No se encontraron registros </a>
+        </div>
+    }
+}
+<br />
+<div class="row">
+    @foreach (var r in Model.ldrinks)
+    {
+    <div class="col-md-3">
+        <a href="@Url.Action("CocktailDetail", "Home", new { Id=r.IdDrink})"
+           class="font-weight-light text-primary font-weight-bolder alert-link" style="font-size:11px;">            
+
+            <figure class="figure align-self-end align-content-end">
+                <img class="align-content-end align-self-end img-fluid" src="@r.strDrinkThumb"
+                     style="width: 220px; height: 220px; align-self:end" />
+            </figure>
+        </a>
+        <p>
+            <a class="btn btn-outline-info align-content-md-center" style="width:180px" 
+              href="@Url.Action("CocktailDetail", "Home", new { Id=r.IdDrink})">@r.strDrink
+            </a>
+            <a class="text-center btn btn-outline-info border-0 justify-content-center" style="width:40px"
+               href="@Url.Action("AddFavourite", "Home", new { Id=r.IdDrink})">                
+                <i class="fas fa-star text-center justify-content-center" style="color:orange"></i>
+            </a>
+        </p>
+    </div>
+    }
+</div>

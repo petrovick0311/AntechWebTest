@@ -10,7 +10,8 @@ namespace AntechLicense.Infraestructure
     public static class SessionExtensions
     {
         public static void SetJson(this ISession session, string key, object value)
-        {
+        {            
+            session.Remove(key);
             session.SetString(key, JsonSerializer.Serialize(value));
         }
         public static T GetJson<T>(this ISession session, string key)

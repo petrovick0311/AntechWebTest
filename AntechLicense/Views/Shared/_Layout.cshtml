@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width" />
-    <title>Test REWORTH</title>
+    <title>Test</title>
     <link href="/lib/twitter-bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link href="/lib/font-awesome/css/all.min.css" rel="stylesheet" />
 
@@ -21,10 +21,23 @@
     </style>
 </head>
 <body>
+    <br />
     <div class="container" style="width:100%">
-        <div class="row" style="width:100%">
-            <div class="col navbar-brand bg-dark text-white p-2">Recompensas</div>
+        
+        <div class="bg-info text-white p-2">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col navbar-brand">The CocktailDB Test</div>
+                    <div class="col-6 text-right">
+                        <a class="btn btn-outline-info border-0 " style="width:40px"
+                           href="@Url.Action("Favourites", "Home")">
+                            <i class="fas fa-star" style="color:orange"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
+        <br />
         <div class="row align-items-center" style="width:100%">
             <div class="col align-content-center" style="width:100%">
                 @RenderBody()

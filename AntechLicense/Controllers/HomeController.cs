@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using AntechLicense.Models;
-using AntechLicense.Models.ViewModels;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -14,165 +13,206 @@ using System.Net.Http.Formatting;
 using System.Net.Http.Headers;
 using System.Net;
 using AntechLicense.Infraestructure;
-
-
+using Newtonsoft.Json.Linq;
+using AntechLicense.UnitOfWork;
+using AntechLicense.NonGenericRepositoryP;
+using Microsoft.AspNetCore.Http;
+using System.Reflection;
 
 namespace AntechLicense.Controllers
 {
     public class HomeController : Controller
-    {
-        private IStoreRepository repository;
-        public int PageSize = 2;
-        public HttpClient client = new HttpClient();
-        //public System.IO.Stream strRecompensas;
-        public string strRecompensas;
-        //public List<RecompensasResponse> plRecompensasResponse = null;
-        private RecompensasResponse? recompensasResponse;        
+    {   
+        private Func<DataContext> instanceDataContext;
+        private UnitOfWork.UnitOfWork unitOfWork;
+        private GenericRepositoryP.GenericRepositoryP<E_drink> genericRepositoryDrink;
 
-        public HomeController(IStoreRepository repo)
+        private ICocktailRepositoryP<E_drink> dCocktailRepositoryP;
+        private ICocktailRepositoryP<E_FavouritesDrink> fCocktailRepositoryP;
+
+        public CocktailDB cocktailDB = new CocktailDB();        
+
+        public HomeController(DataContext dataContext)
         {
-            repository = repo;                       
+            instanceDataContext = delegate ()
+            {
+                return new DataContext();
+            };
+            //unitOfWork = new UnitOfWork.UnitOfWork(instanceDataContext);
 
-            client.BaseAddress = new Uri("https://api.reworth.app/dev/directory");
-            client.DefaultRequestHeaders.Accept.Clear();
-            client.DefaultRequestHeaders.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                );
+            unitOfWork = new UnitOfWork.UnitOfWork(dataContext);
+            dCocktailRepositoryP = new CocktailRepositoryP<E_drink>(unitOfWork);
+            fCocktailRepositoryP = new CocktailRepositoryP<E_FavouritesDrink>(unitOfWork);
         }
 
-        //public ViewResult Index(string tipoLicencia, int LicensePage = 1)
-        //=> View(new LicenseListViewModel
-        //{
-        //    Licencias = repository.Licencias
-        //    .Where(l => tipoLicencia == null || l.TipoLicencia == tipoLicencia)
-        //    .OrderBy(l => l.LicenciaID)
-        //    .Skip((LicensePage - 1) * PageSize)
-        //    .Take(PageSize),
-        //    PagingInfo = new PagingInfo
-        //    {
-        //        CurrentPage = LicensePage,
-        //        ItemsPerPage = PageSize,
-        //        TotalItems = tipoLicencia == null ?
-        //            repository.Licencias.Count() :
-        //            repository.Licencias.Where(e => e.TipoLicencia == tipoLicencia).Count()
-        //    },
-        //    CurrentTipoLicencia = tipoLicencia
-        //});
-
-        public RedirectToActionResult Index()
+        public RedirectToActionResult Index() 
         {
-            return RedirectToAction("Inicio");
+            return RedirectToAction("Cocktail");
         }
 
         public ViewResult Inicio()
         {   
             return View();
         }
-
-        public ViewResult Location(string Name)
+        
+        public async Task<IActionResult> Cocktail()
         {
-            RecompensasData ObjData = (HttpContext.Session.GetJson<RecompensasResponse>("RecompensasResponse")).data.FirstOrDefault(f=> f.name == Name);
-            return View(ObjData);
+            ViewBag.ShowAlert = "";
+            cocktailDB.ldrinks = await dCocktailRepositoryP.GetDrinks();
+            HttpContext.Session.SetJson("CocktailResponse", cocktailDB.ldrinks);
+            return View(cocktailDB);
         }
 
-        public ViewResult Mas(string Name)
+        public async Task<IActionResult> CocktailDetail(int Id)
         {
-            RecompensasResponse ObjResponse = HttpContext.Session.GetJson<RecompensasResponse>("RecompensasResponse");            
-            RecompensasData ObjData = ObjResponse.data.First(f => f.name == Name);
-            return View(ObjData);
-        }
-
-        //Es valido pero me gusto la otra version
-        //public async Task<IActionResult> Recompensas()
-        //{
-        //    RecompensasListViewModel rlvm = new RecompensasListViewModel();
-        //    rlvm.lRecompensas = await GetRecompensas(client, "");
-        //    return View(rlvm);
-        //}
-
-        //public async Task<IActionResult> Recompensas()
-        //=> View(new RecompensasListViewModel
-        //{
-        //    lRecompensas = await GetRecompensas(client, "")
-        //});
-
-        public async Task<IActionResult> Recompensas()
-        {
-            await DeserializeRecompensas(client, "");
-            HttpContext.Session.SetJson("RecompensasResponse", recompensasResponse);
-            return View(recompensasResponse);
-        }
-
-        public ViewResult RecompensasR(string sFilter)
-        {
-            recompensasResponse = HttpContext.Session.GetJson<RecompensasResponse>("RecompensasResponse");
-            string[] sSplit = sFilter.Split('=');
-            switch (sSplit[0])
+            cocktailDB.ldrinks = new List<E_drink>();
+            if (Id > 0)
             {
-                case "cashback_decimal":
-                    recompensasResponse.data = recompensasResponse.data.OrderByDescending(ob => ob.cashback_decimal).ToArray();
-                    //Array.Sort(recompensasResponse.data, (x, y) => x.cashback_decimal.CompareTo(y.cashback_decimal));
-                    break;
+                cocktailDB.ldrinks.Add(await dCocktailRepositoryP.GetDrink(Id));
+                cocktailDB.lIngredientsdrink = new List<IngredientDrink>();
+                E_drink ObjDrink = cocktailDB.ldrinks.Find(f => f.IdDrink == Id);
+                PropertyInfo[] info = typeof(E_drink).GetProperties();
 
-                case "rating":
-                    recompensasResponse.data = recompensasResponse.data.OrderByDescending(ob => ob.rating).ToArray();
-                    break;
+                if (ObjDrink != null)
+                {
+                    for (int i = 0; i < 15; i++)
+                    {
+                        IngredientDrink IDObj = new IngredientDrink();
 
-                case "created":
-                    recompensasResponse.data = recompensasResponse.data.OrderByDescending(ob => ob.created).ToArray();
-                    break;
+                        IDObj.IdDrink = Convert.ToInt32(info.First(f => f.Name.Trim() == "IdDrink").GetValue(ObjDrink));
+
+                        string sIngrediente = (info.First(f => f.Name.Trim() == ("strIngredient" + (i + 1).ToString())
+                                        ).GetValue(ObjDrink))?.ToString() ?? "";
+                        if (sIngrediente.Trim().Length > 0)
+                            IDObj.strIngrediente = sIngrediente;
+                        else
+                            IDObj.strIngrediente = "";
+
+                        string sMedida = info.First(f => f.Name.Trim() == ("strMeasure" + (i + 1).ToString())
+                                        ).GetValue(ObjDrink)?.ToString() ?? "";
+                        if (sMedida.Trim().Length > 0)
+                            IDObj.strMedida = sMedida;
+                        else
+                            IDObj.strMedida = "";
+
+                        if (IDObj.strIngrediente.Trim().Length > 0)
+                        {
+                            IDObj.strURLImage = "https://www.thecocktaildb.com/images/ingredients/" + IDObj.strIngrediente + "-Small.png";
+
+                            cocktailDB.lIngredientsdrink.Add(IDObj);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
             }
-            return View(recompensasResponse);
+            return View("CocktailDetail", cocktailDB);
         }
-
-        public async Task<IActionResult> RecompensasDos()
+                
+        public async Task<IActionResult> AddFavourite(int Id)
         {
-            await DeserializeRecompensas(client, "");
-            HttpContext.Session.SetJson("RecompensasResponse", recompensasResponse);
-            return View(recompensasResponse);
-        }
-
-        private async Task<System.IO.Stream> GetRecompensas_(HttpClient client, string path)
-        {
-            System.IO.Stream rc = null;
-            HttpResponseMessage response = await client.GetAsync(path);
-            if (response.IsSuccessStatusCode)
+            try
             {
-                rc = await response.Content.ReadAsStreamAsync();
+                if (Id > 0)
+                {
+                    unitOfWork.CreateTransaction();
+
+                    if (ModelState.IsValid)
+                    {
+                        cocktailDB.ldrinks = new List<E_drink>();
+                        cocktailDB.ldrinks.Add(await dCocktailRepositoryP.GetDrink(Id));
+                        E_drink ObjDrink = cocktailDB.ldrinks.Find(f => f.IdDrink == Id);
+                        if (ObjDrink != null)
+                        {
+
+                            // Campos de auditoria
+                            ObjDrink.CreatedBy = "Guess";
+                            ObjDrink.CreatedDate = DateTime.Now;
+
+                            // Alta bebida, para ir generando catalogo de bebidas en BD solo de favoritos
+                            dCocktailRepositoryP.AddDrink(ObjDrink);
+                            unitOfWork.SaveTransaction();
+
+                            #region Favoritos
+                            E_FavouritesDrink ObjFavouriteDrink = new E_FavouritesDrink();
+                            // Campos de auditoria
+                            ObjFavouriteDrink.CreatedBy = ObjDrink.CreatedBy;
+                            ObjFavouriteDrink.CreatedDate = ObjDrink.CreatedDate;
+                            ObjFavouriteDrink.NameUsuario = ObjFavouriteDrink.CreatedBy;
+                            ObjFavouriteDrink.F_IdDrink = ObjDrink.IdDrink;
+
+                            // Alta de favoritos
+                            fCocktailRepositoryP.AddFavouriteDrink(ObjFavouriteDrink);
+                            unitOfWork.SaveTransaction();
+                            #endregion
+                            
+                            unitOfWork.CommitTransaction();
+                        }
+                    }
+                }
             }
-            return rc;
-        }
-
-        private async Task GetRecompensa(HttpClient client, string path)
-        {            
-            HttpResponseMessage response = await client.GetAsync(path);
-            if (response.IsSuccessStatusCode)
+            catch(Exception ex)
             {
-                strRecompensas = await response.Content.ReadAsStringAsync();
-                ViewBag.strRecompensas = strRecompensas;
-            }
-        }
-
-        private async Task<List<RecompensasResponse>> GetRecompensas(HttpClient client, string path)
-        {
-            List<RecompensasResponse> lRecompensasResponse = null;
-            HttpResponseMessage response = await client.GetAsync(path);
-            if (response.IsSuccessStatusCode)
-            {
-                lRecompensasResponse = await response.Content.ReadAsAsync<List<RecompensasResponse>>();
+                unitOfWork.RollBackTransaction();
             }
 
-            return lRecompensasResponse;
+            ViewBag.ShowAlert = "";
+            cocktailDB.ldrinks = await dCocktailRepositoryP.GetDrinks();
+            HttpContext.Session.SetJson("CocktailResponse", cocktailDB.ldrinks);            
+            return View("Cocktail", cocktailDB);
         }
 
-        private async Task DeserializeRecompensas(HttpClient client, string path)
+        public ViewResult Favourites()
         {
-            HttpResponseMessage response = await client.GetAsync(path);
-            if (response.IsSuccessStatusCode)
+            try
             {
-                string strRecompensasResponse = await response.Content.ReadAsStringAsync();
-                recompensasResponse = JsonSerializer.Deserialize<RecompensasResponse>(strRecompensasResponse);
-            }            
+                cocktailDB.ldrinks =  dCocktailRepositoryP.GetFavouritesDrinks("Guess");                
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            
+            return View("Favourites", cocktailDB);
+        }
+
+        public ViewResult DeleteFavourite(int Id)
+        {
+            try
+            {
+                if (Id > 0)
+                {
+                    unitOfWork.CreateTransaction();
+
+                    dCocktailRepositoryP.DeleteFavouriteDrink(Id);
+
+                    unitOfWork.SaveTransaction();
+                    unitOfWork.CommitTransaction();
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+                unitOfWork.RollBackTransaction();
+            }
+
+            cocktailDB.ldrinks = dCocktailRepositoryP.GetFavouritesDrinks("Guess");
+            return View("Favourites", cocktailDB);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Search(string Buscar, string TipoBusqueda)
+        {
+            ViewBag.ShowAlert = Buscar + "-" + TipoBusqueda;
+            cocktailDB.ldrinks = new List<E_drink>();
+            cocktailDB.ldrinks = await dCocktailRepositoryP.GetDrinks(TipoBusqueda, Buscar);
+            HttpContext.Session.Clear();
+            HttpContext.Session.Remove("CocktailResponse");
+            HttpContext.Session.SetJson("CocktailResponse", cocktailDB.ldrinks);
+            return View("Cocktail", cocktailDB);
         }
     }
 }
